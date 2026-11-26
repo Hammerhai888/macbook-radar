@@ -7,36 +7,51 @@ import requests
 from playwright.async_api import async_playwright
 
 # ==========================================
-# HIER DEINEN NTFY-KANALNAMEN EINTRAGEN!
+# 1. DEIN PUSH-KANAL (NTFY.SH)
 # ==========================================
-NTFY_TOPIC = "tobi_macbook_alarm_9941"
+NTFY_TOPIC = "tobi_macbook_alarm_9941"  # <-- Prüfe, ob hier dein Kanalname steht!
 
 # ==========================================
-# PREIS-LIMITS (CH & DE/AT)
+# 2. PREIS-LIMITS
 # ==========================================
-MAX_PREIS_CHF = 1000.00   # Striktes Maximum Schweiz
-MAX_PREIS_EUR = 1065.00   # Entspricht ca. 1000 CHF
-MIN_PREIS = 490.00        # Filtert Zubehör, Taschen, Netzteile & Raten aus
+MAX_PREIS_CHF = 1000.00           # Reguläre Händler Schweiz
+MAX_PREIS_GEBRAUCHT_CHF = 900.00  # Tutti.ch & Ricardo.ch (Sofort-Kaufen)
+MAX_PREIS_EUR = 1090.00           # Reguläre Händler DE / AT (entspricht ca. 1000 CHF)
+MIN_PREIS = 490.00                # Filtert günstiges Zubehör & Raten aus
 
 CACHE_FILE = "seen_deals.json"
 PARALLELE_TABS = 4
 
+# ==========================================
+# 3. AUSSCHLUSS-FILTER (ZUBEHÖR, DEFEKTE, ABGELAUFENE DEALS)
+# ==========================================
 BLACKLIST = [
     "hülle", "tasche", "sleeve", "case", "folie", "schutzfolie", "adapter",
     "netzteil", "kabel", "tastaturschutz", "aufkleber", "skin", "ständer",
     "hub", "dock", "docking", "display", "monitor", "applecare", "care+",
     "garantie", "versicherung", "schutzplan", "miete", "abo", "monatlich",
     "13\"", "13 zoll", "13.6", "14\"", "16\"", "pro 16", "pro 14", "ipad",
-    "ersatzteil", "akku", "tastatur", "bildschirm", "reparatur", "uvp"
+    "ersatzteil", "akku", "tastatur", "bildschirm", "reparatur", "uvp",
+    "abgelaufen", "beendet", "ausverkauft", "nicht verfügbar", "nicht mehr verfügbar", "expired",
+    "defekt", "bastler", "displaybruch", "wasserschaden", "icloud", "gesperrt",
+    "intel", "2015", "2016", "2017", "2018", "2019", "2020"
 ]
 
+# ==========================================
+# 4. ALLE 49 QUELLEN (CH, DE, AT)
+# ==========================================
 TARGETS = [
-    # --- SCHWEIZ: Preisvergleiche & Deal-Communities ---
+    # --- SCHWEIZ: Kleinanzeigen & Gebraucht (Limit: 900 CHF) ---
+    {"name": "Tutti.ch (Suche: Air 15)", "currency": "CHF", "max_price": MAX_PREIS_GEBRAUCHT_CHF, "url": "https://www.tutti.ch/de/q/MacBook+Air+15"},
+    {"name": "Tutti.ch (Suche: Air 15.3)", "currency": "CHF", "max_price": MAX_PREIS_GEBRAUCHT_CHF, "url": "https://www.tutti.ch/de/q/MacBook+Air+15.3"},
+    {"name": "Ricardo.ch (Sofort-Kaufen)", "currency": "CHF", "max_price": MAX_PREIS_GEBRAUCHT_CHF, "url": "https://www.ricardo.ch/de/s/MacBook%20Air/?offer_type=fixed_price"},
+
+    # --- SCHWEIZ: Preisvergleiche & Deal-Communities (Limit: 1000 CHF) ---
     {"name": "Toppreise.ch (Alle CH-Shops)", "currency": "CHF", "url": "https://www.toppreise.ch/produktsuche?q=macbook%20air%2015"},
     {"name": "Preispirat.ch (CH-Schnäppchen)", "currency": "CHF", "url": "https://www.preispirat.ch/?s=MacBook+Air+15"},
     {"name": "Dealbunny.ch", "currency": "CHF", "url": "https://www.dealbunny.ch/?s=MacBook+Air+15"},
 
-    # --- SCHWEIZ: Grosse Händler & Elektronikmärkte ---
+    # --- SCHWEIZ: Grosse Händler & Elektronikmärkte (Limit: 1000 CHF) ---
     {"name": "Digitec.ch", "currency": "CHF", "url": "https://www.digitec.ch/de/search?q=MacBook+Air+15"},
     {"name": "Galaxus.ch", "currency": "CHF", "url": "https://www.galaxus.ch/de/search?q=MacBook+Air+15"},
     {"name": "Brack.ch", "currency": "CHF", "url": "https://www.brack.ch/search?query=MacBook+Air+15"},
@@ -48,7 +63,7 @@ TARGETS = [
     {"name": "Migros / Melectronics", "currency": "CHF", "url": "https://www.migros.ch/de/search?query=MacBook+Air+15"},
     {"name": "Coop / Microspot", "currency": "CHF", "url": "https://www.coop.ch/de/search/?text=MacBook+Air+15"},
 
-    # --- SCHWEIZ: Apple Reseller, IT-Shops & Refurbished ---
+    # --- SCHWEIZ: Apple Reseller, IT-Shops & Refurbished (Limit: 1000 CHF) ---
     {"name": "Apple Refurbished CH", "currency": "CHF", "url": "https://www.apple.com/ch-de/shop/refurbished/mac/macbook-air"},
     {"name": "DQ Solutions (Apple Premium)", "currency": "CHF", "url": "https://www.dq-solutions.ch/de/search?q=MacBook+Air+15"},
     {"name": "DataQuest.ch", "currency": "CHF", "url": "https://www.dataquest.ch/search?q=MacBook+Air+15"},
@@ -60,15 +75,15 @@ TARGETS = [
     {"name": "Revendo.ch (Refurbished)", "currency": "CHF", "url": "https://revendo.ch/de/kaufen/macbook/?q=MacBook+Air+15"},
     {"name": "BackMarket.ch (Refurbished)", "currency": "CHF", "url": "https://www.backmarket.ch/de-ch/search?q=MacBook+Air+15"},
 
-    # --- DEUTSCHLAND: Preisvergleiche & Schnäppchen-Portale ---
+    # --- DEUTSCHLAND: Preisvergleiche & Schnäppchen-Portale (Limit: 1090 EUR) ---
     {"name": "Geizhals.de (Alle DE-Shops)", "currency": "EUR", "url": "https://geizhals.de/?fs=MacBook+Air+15&hloc=de"},
     {"name": "idealo.de (Alle DE-Shops)", "currency": "EUR", "url": "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=MacBook+Air+15"},
-    {"name": "mydealz.de (DE-Schnäppchen)", "currency": "EUR", "url": "https://www.mydealz.de/search?q=MacBook+Air+15"},
+    {"name": "mydealz.de (DE-Schnäppchen)", "currency": "EUR", "url": "https://www.mydealz.de/search?q=MacBook+Air+15&hide_expired=true"},
     {"name": "DealDoktor.de", "currency": "EUR", "url": "https://www.dealdoktor.de/?s=MacBook+Air+15"},
     {"name": "MyTopDeals.net", "currency": "EUR", "url": "https://www.mytopdeals.net/?s=MacBook+Air+15"},
-    {"name": "Preisjaeger.at", "currency": "EUR", "url": "https://www.preisjaeger.at/search?q=MacBook+Air+15"},
+    {"name": "Preisjaeger.at", "currency": "EUR", "url": "https://www.preisjaeger.at/search?q=MacBook+Air+15&hide_expired=true"},
 
-    # --- DEUTSCHLAND: Grosse Händler & Elektronikketten ---
+    # --- DEUTSCHLAND: Grosse Händler & Elektronikketten (Limit: 1090 EUR) ---
     {"name": "Amazon.de", "currency": "EUR", "url": "https://www.amazon.de/s?k=MacBook+Air+15"},
     {"name": "MediaMarkt.de", "currency": "EUR", "url": "https://www.mediamarkt.de/de/search.html?query=MacBook+Air+15"},
     {"name": "Saturn.de", "currency": "EUR", "url": "https://www.saturn.de/de/search.html?query=MacBook+Air+15"},
@@ -87,11 +102,14 @@ TARGETS = [
     {"name": "Apple Refurbished DE", "currency": "EUR", "url": "https://www.apple.com/de/shop/refurbished/mac/macbook-air"},
     {"name": "BackMarket.de (Refurbished)", "currency": "EUR", "url": "https://www.backmarket.de/de-de/search?q=MacBook+Air+15"},
 
-    # --- ÖSTERREICH: MediaMarkt & Preisvergleich ---
+    # --- ÖSTERREICH: MediaMarkt & Preisvergleich (Limit: 1090 EUR) ---
     {"name": "MediaMarkt.at", "currency": "EUR", "url": "https://www.mediamarkt.at/de/search.html?query=MacBook+Air+15"},
     {"name": "Geizhals.at (AT-Shops)", "currency": "EUR", "url": "https://geizhals.at/?fs=MacBook+Air+15&hloc=at"},
 ]
 
+# ==========================================
+# 5. PROGRAMM-LOGIK
+# ==========================================
 def load_cache():
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -120,11 +138,9 @@ def send_push(shop, title, price, currency, url):
         print(f"[PUSH FEHLER] {e}")
 
 def parse_price(text):
-    # 1. Speichergrössen & Modelljahre entfernen (z.B. "512 GB", "1024GB", "(2026)")
     cleaned_text = re.sub(r"\b\d+\s*(?:GB|TB|MHz|GHz|Core|W)\b", "", text, flags=re.I)
     cleaned_text = re.sub(r"\(\s*202\d\s*\)", "", cleaned_text)
 
-    # 2. Nur Zahlen akzeptieren, die DIREKT ein Währungszeichen davor oder danach haben!
     pattern = r"(?:(?:CHF|EUR|€|Fr\.?)\s*(\d{1,4}['’.,]?\d{2,3}(?:[.,]\d{2}|[.,]-)?)|(\d{1,4}['’.,]?\d{2,3}(?:[.,]\d{2}|[.,]-)?)\s*(?:CHF|EUR|€|Fr\.?))"
     matches = re.findall(pattern, cleaned_text, flags=re.I)
 
@@ -163,7 +179,8 @@ async def scan_target(semaphore, context, target, seen_cache):
     async with semaphore:
         page = await context.new_page()
         currency = target["currency"]
-        max_limit = MAX_PREIS_CHF if currency == "CHF" else MAX_PREIS_EUR
+        default_limit = MAX_PREIS_CHF if currency == "CHF" else MAX_PREIS_EUR
+        max_limit = target.get("max_price", default_limit)
         hits = 0
 
         try:
@@ -209,7 +226,7 @@ async def scan_target(semaphore, context, target, seen_cache):
                 except Exception:
                     continue
 
-            print(f"[OK] {target['name']}: {hits} neue Treffer")
+            print(f"[OK] {target['name']}: {hits} neue Treffer (Limit: {max_limit} {currency})")
 
         except Exception as e:
             print(f"[ÜBERSPRUNGEN] {target['name']}: {str(e).splitlines()[0]}")
