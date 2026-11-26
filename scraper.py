@@ -27,7 +27,7 @@ BLACKLIST = [
     "hub", "dock", "docking", "display", "monitor", "applecare", "care+",
     "garantie", "versicherung", "schutzplan", "miete", "abo", "monatlich",
     "13\"", "13 zoll", "13.6", "14\"", "16\"", "pro 16", "pro 14", "ipad",
-    "ersatzteil", "akku", "tastatur", "bildschirm", "reparatur"
+    "ersatzteil", "akku", "tastatur", "bildschirm", "reparatur", "uvp"
 ]
 
 TARGETS = [
@@ -120,10 +120,18 @@ def send_push(shop, title, price, currency, url):
         print(f"[PUSH FEHLER] {e}")
 
 def parse_price(text):
-    matches = re.findall(r"(?:CHF|EUR|€|Fr\.?)?\s*(\d{1,4}['’.,]?\d{2,3}(?:[.,]\d{2})?)", text)
+    # 1. Speichergrössen & Modelljahre entfernen (z.B. "512 GB", "1024GB", "(2026)")
+    cleaned_text = re.sub(r"\b\d+\s*(?:GB|TB|MHz|GHz|Core|W)\b", "", text, flags=re.I)
+    cleaned_text = re.sub(r"\(\s*202\d\s*\)", "", cleaned_text)
+
+    # 2. Nur Zahlen akzeptieren, die DIREKT ein Währungszeichen davor oder danach haben!
+    pattern = r"(?:(?:CHF|EUR|€|Fr\.?)\s*(\d{1,4}['’.,]?\d{2,3}(?:[.,]\d{2}|[.,]-)?)|(\d{1,4}['’.,]?\d{2,3}(?:[.,]\d{2}|[.,]-)?)\s*(?:CHF|EUR|€|Fr\.?))"
+    matches = re.findall(pattern, cleaned_text, flags=re.I)
+
     prices = []
-    for m in matches:
-        clean = m.replace("'", "").replace("’", "")
+    for m1, m2 in matches:
+        raw_num = m1 or m2
+        clean = raw_num.replace("'", "").replace("’", "").replace(".-", ".00").replace(",-", ".00")
         if "," in clean and "." in clean:
             if clean.rfind(",") > clean.rfind("."):
                 clean = clean.replace(".", "").replace(",", ".")
